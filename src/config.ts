@@ -6,11 +6,12 @@
  */
 
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Load <project>/.env if present (Node >= 20.12). Real env vars take precedence.
-const envFile = join(dirname(fileURLToPath(import.meta.url)), "..", ".env");
+export const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const envFile = join(PROJECT_ROOT, ".env");
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 
 const env = (name: string): string | undefined => {
@@ -37,8 +38,18 @@ export interface InstagramConfig {
   host: string;
 }
 
+export interface HttpConfig {
+  host: string;
+  port: number;
+  authToken?: string;
+}
+
 export interface Config {
   graphVersion: string;
+  /** Public base URL of this server (e.g. https://mcp.example.com); enables /media hosting for Instagram. */
+  publicUrl?: string;
+  mediaDir: string;
+  http: HttpConfig;
   dryRunByDefault: boolean;
   linkedin?: LinkedInConfig;
   facebook?: FacebookConfig;
@@ -54,6 +65,13 @@ function load(): Config {
 
   return {
     graphVersion: env("META_GRAPH_API_VERSION") ?? "v24.0",
+    publicUrl: env("SOCIAL_MCP_PUBLIC_URL")?.replace(/\/+$/, ""),
+    mediaDir: resolve(PROJECT_ROOT, env("SOCIAL_MCP_MEDIA_DIR") ?? "media"),
+    http: {
+      host: env("MCP_HTTP_HOST") ?? "127.0.0.1",
+      port: Number(env("MCP_HTTP_PORT") ?? 3100),
+      authToken: env("MCP_AUTH_TOKEN"),
+    },
     dryRunByDefault: ["1", "true", "yes"].includes((env("SOCIAL_MCP_DRY_RUN") ?? "").toLowerCase()),
     linkedin: liToken
       ? { accessToken: liToken, authorUrn: env("LINKEDIN_AUTHOR_URN"), apiVersion: env("LINKEDIN_API_VERSION") }

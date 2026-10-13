@@ -1,0 +1,13 @@
+# social-publisher-mcp — LuMiGRAF Technology Lab — https://dev.lm-ads.com
+# Reverse proxy DSM: https://mcp.lm-ads.com -> http://127.0.0.1:3100
+services:
+  social-mcp:
+    build: .
+    image: social-mcp:latest
+    container_name: social-mcp
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./data:/data

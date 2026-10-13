@@ -1,0 +1,9 @@
+node_modules
+src
+plans
+data
+media
+.env
+.git
+*.log
+schedule.json*

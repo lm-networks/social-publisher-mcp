@@ -108,6 +108,32 @@ claude mcp add social-publisher -- node C:/sciezka/do/social-mcp/dist/index.js
 
 Serwer sam wczytuje `.env` z katalogu projektu. Zamiast tego możesz podać zmienne w sekcji `"env"` konfiguracji.
 
+## Serwer zdalny (HTTP, Docker na Synology)
+
+`node dist/index.js --http` uruchamia serwer HTTP:
+
+- `POST /mcp` - MCP Streamable HTTP, wymaga `Authorization: Bearer <MCP_AUTH_TOKEN>`,
+- `GET /media/<plik>` - publiczne pliki dla Instagrama (katalog `SOCIAL_MCP_MEDIA_DIR`),
+- `GET /health`.
+
+Ścieżki lokalne w postach na Instagram są automatycznie zamieniane na `SOCIAL_MCP_PUBLIC_URL/media/...`. Klienci zdalni mogą wgrać plik narzędziem `upload_media`. Kolejka publikacji jest wysyłana co `SOCIAL_MCP_QUEUE_INTERVAL_MIN` minut (domyślnie 5), więc cron nie jest potrzebny.
+
+Wdrożenie na andromedzie (`/volume1/docker/social-mcp`, Container Manager):
+
+```bash
+npm run build                               # lokalnie
+# skopiuj dist/, package*.json, Dockerfile, compose.yaml na NAS, potem na NAS:
+DOCKER_BUILDKIT=0 docker build -t social-mcp:latest .   # BuildKit nie działa na jądrze 4.4 (seccomp)
+docker compose up -d --no-build
+```
+
+Konfiguracja w `.env` obok `compose.yaml`, dane (kolejka, media) w `./data`. Reverse proxy DSM: `https://mcp.lm-ads.com` -> `http://127.0.0.1:3100`.
+
+Podłączenie:
+```bash
+claude mcp add --transport http social-publisher https://mcp.lm-ads.com/mcp --header "Authorization: Bearer <MCP_AUTH_TOKEN>"
+```
+
 ## Przykładowe polecenia
 
 - „Sprawdź połączenia z social media”

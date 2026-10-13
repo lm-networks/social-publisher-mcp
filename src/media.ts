@@ -5,9 +5,11 @@
  * © 2026 LuMiGRAF Technology Lab
  */
 
-import { readFile } from "node:fs/promises";
-import { basename, extname, resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { config } from "./config.js";
 
 export interface MediaFile {
   data: Uint8Array<ArrayBuffer>;
@@ -51,4 +53,30 @@ export async function loadMedia(src: string): Promise<MediaFile> {
     contentType: MIME[extname(path).toLowerCase()] ?? "application/octet-stream",
     filename: basename(path),
   };
+}
+
+/**
+ * Instagram only accepts public https URLs. When SOCIAL_MCP_PUBLIC_URL is set, a local path is
+ * served from <mediaDir> via /media/ (files outside it are copied in first).
+ */
+export async function publicMediaUrl(src: string): Promise<string> {
+  if (isUrl(src) || !config.publicUrl) return src;
+  const path = src.startsWith("file://") ? fileURLToPath(src) : resolve(src);
+  let rel = relative(config.mediaDir, path);
+  if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
+    const data = await readFile(path);
+    rel = join("uploads", `${createHash("sha1").update(data).digest("hex").slice(0, 10)}-${basename(path)}`);
+    await mkdir(join(config.mediaDir, "uploads"), { recursive: true });
+    await writeFile(join(config.mediaDir, rel), data);
+  }
+  return `${config.publicUrl}/media/${rel.split(sep).map(encodeURIComponent).join("/")}`;
+}
+
+/** Saves uploaded bytes into <mediaDir>/uploads and returns the local path and public URL. */
+export async function saveUpload(filename: string, data: Uint8Array): Promise<{ path: string; url?: string }> {
+  const name = `${createHash("sha1").update(data).digest("hex").slice(0, 10)}-${basename(filename).replace(/[^\w.-]+/g, "_")}`;
+  const path = join(config.mediaDir, "uploads", name);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, data);
+  return { path, url: config.publicUrl ? `${config.publicUrl}/media/uploads/${encodeURIComponent(name)}` : undefined };
 }

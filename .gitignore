@@ -8,3 +8,5 @@ dist/
 .env
 schedule.json*
 plans/
+media/
+data/

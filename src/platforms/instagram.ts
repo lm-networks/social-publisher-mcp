@@ -7,7 +7,7 @@
 
 import { config, type InstagramConfig } from "../config.js";
 import { sleep } from "../http.js";
-import { isUrl, isVideo } from "../media.js";
+import { isUrl, isVideo, publicMediaUrl } from "../media.js";
 import type { PublishResult } from "../types.js";
 import { GraphClient } from "./graph.js";
 
@@ -50,14 +50,16 @@ export function validateCaption(caption = "") {
 }
 
 export async function createPost(cfg: InstagramConfig, input: InstagramPostInput): Promise<PublishResult> {
-  const images = input.images ?? [];
-  if (!images.length && !input.video) throw new Error("[instagram] Instagram wymaga zdjęcia lub wideo — sam tekst nie jest możliwy.");
-  if (images.length && input.video) throw new Error("[instagram] Podaj zdjęcia (pojedyncze/karuzela) albo jedno wideo (Reels).");
-  if (images.length > 10) throw new Error("[instagram] Karuzela może mieć maksymalnie 10 elementów.");
+  if (!input.images?.length && !input.video) throw new Error("[instagram] Instagram wymaga zdjęcia lub wideo — sam tekst nie jest możliwy.");
+  if (input.images?.length && input.video) throw new Error("[instagram] Podaj zdjęcia (pojedyncze/karuzela) albo jedno wideo (Reels).");
+  if ((input.images?.length ?? 0) > 10) throw new Error("[instagram] Karuzela może mieć maksymalnie 10 elementów.");
+  // Local paths become /media/ URLs when SOCIAL_MCP_PUBLIC_URL is set.
+  const images = await Promise.all((input.images ?? []).map(publicMediaUrl));
+  input = { ...input, video: input.video && (await publicMediaUrl(input.video)) };
   const local = [...images, input.video].filter((s): s is string => !!s && !isUrl(s));
   if (local.length)
     throw new Error(
-      `[instagram] API Instagrama przyjmuje tylko publiczne adresy URL (https), nie pliki lokalne: ${local.join(", ")}`,
+      `[instagram] API Instagrama przyjmuje tylko publiczne adresy URL (https), nie pliki lokalne: ${local.join(", ")}. Ustaw SOCIAL_MCP_PUBLIC_URL albo użyj upload_media.`,
     );
   validateCaption(input.caption);
 
