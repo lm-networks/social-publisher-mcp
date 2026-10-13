@@ -1,0 +1,31 @@
+{
+  "name": "social-publisher-mcp",
+  "version": "1.0.0",
+  "description": "MCP server: publikacja postów na LinkedIn, Facebook i Instagram",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "auth:linkedin": "node dist/scripts/linkedin-auth.js",
+    "auth:meta": "node dist/scripts/meta-auth.js"
+  },
+  "keywords": [],
+  "author": "LuMiGRAF Technology Lab <l@lm-networks.pl> (https://dev.lm-ads.com)",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
+  },
+  "bin": {
+    "social-publisher-mcp": "dist/index.js"
+  },
+  "engines": {
+    "node": ">=20.12"
+  },
+  "homepage": "https://dev.lm-ads.com"
+}

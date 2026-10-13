@@ -1,0 +1,18 @@
+// social-publisher-mcp — publikacja postów na LinkedIn, Facebook i Instagram
+// Autor: LuMiGRAF Technology Lab — https://dev.lm-ads.com
+// Kontakt: l@lm-networks.pl
+// © 2026 LuMiGRAF Technology Lab
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["src"]
+}
