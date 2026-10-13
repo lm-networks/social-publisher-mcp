@@ -24,6 +24,8 @@ export interface LinkedInConfig {
   authorUrn?: string;
   /** YYYYMM; when unset the client picks the newest active version itself. */
   apiVersion?: string;
+  /** Comments need the Community Management API; without it the link goes into the post text. */
+  commentsEnabled: boolean;
 }
 
 export interface FacebookConfig {
@@ -74,7 +76,12 @@ function load(): Config {
     },
     dryRunByDefault: ["1", "true", "yes"].includes((env("SOCIAL_MCP_DRY_RUN") ?? "").toLowerCase()),
     linkedin: liToken
-      ? { accessToken: liToken, authorUrn: env("LINKEDIN_AUTHOR_URN"), apiVersion: env("LINKEDIN_API_VERSION") }
+      ? {
+          accessToken: liToken,
+          authorUrn: env("LINKEDIN_AUTHOR_URN"),
+          apiVersion: env("LINKEDIN_API_VERSION"),
+          commentsEnabled: ["1", "true", "yes"].includes((env("LINKEDIN_COMMENTS") ?? "").toLowerCase()),
+        }
       : undefined,
     facebook: fbPage && fbToken ? { pageId: fbPage, pageAccessToken: fbToken } : undefined,
     instagram:

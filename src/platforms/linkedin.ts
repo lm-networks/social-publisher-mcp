@@ -136,8 +136,11 @@ export interface LinkedInPostInput {
 export async function createPost(cfg: LinkedInConfig, input: LinkedInPostInput): Promise<PublishResult> {
   const images = input.images ?? [];
   if (images.length > 20) throw new Error("[linkedin] Maksymalnie 20 obrazów w poście.");
-  const linkInComment = !!(input.linkInFirstComment && input.linkUrl);
-  const commentText = input.firstComment ?? (linkInComment ? `👉 Cały artykuł: ${input.linkUrl}` : undefined);
+  // Without comment permission (Community Management API) the link stays in the post text.
+  const linkInComment = !!(input.linkInFirstComment && input.linkUrl && cfg.commentsEnabled);
+  const commentText = cfg.commentsEnabled
+    ? (input.firstComment ?? (linkInComment ? `👉 Cały artykuł: ${input.linkUrl}` : undefined))
+    : undefined;
 
   let text = input.text;
   // A post carries either images or a link card. With images, the link goes into the text.

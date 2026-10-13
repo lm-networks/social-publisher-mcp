@@ -25,11 +25,18 @@ export async function notifyTelegram(reports: RunReport[]): Promise<void> {
   if (!worth.length) return;
 
   const blocks = worth.map((r) => {
-    const lines = [`${ICON[r.outcome]} <b>${esc(r.label ?? r.id)}</b>`];
+    const commentFailed = (r.results ?? []).some((x) => x.ok && x.firstComment && !x.firstComment.ok);
+    const icon = r.outcome === "published" && commentFailed ? ICON.partial : ICON[r.outcome];
+    const lines = [`${icon} <b>${esc(r.label ?? r.id)}</b>`];
     for (const x of r.results ?? []) {
       const name = NAMES[x.platform] ?? x.platform;
-      if (x.ok) lines.push(x.url ? `• ${name}: <a href="${esc(x.url)}">post</a>` : `• ${name}: opublikowano`);
-      else lines.push(`• ${name}: błąd - ${esc(x.error.slice(0, 300))}`);
+      if (!x.ok) {
+        lines.push(`• ${name}: błąd - ${esc(x.error.slice(0, 300))}`);
+        continue;
+      }
+      lines.push(x.url ? `• ${name}: <a href="${esc(x.url)}">post</a>` : `• ${name}: opublikowano`);
+      if (x.firstComment && !x.firstComment.ok)
+        lines.push(`  ⚠️ komentarz z linkiem nie dodany: ${esc((x.firstComment.error ?? "").slice(0, 200))}`);
     }
     if (!r.results?.length && r.note) lines.push(esc(r.note));
     return lines.join("\n");
