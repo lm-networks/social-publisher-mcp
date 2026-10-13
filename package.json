@@ -27,5 +27,12 @@
   "engines": {
     "node": ">=20.12"
   },
-  "homepage": "https://dev.lm-ads.com"
+  "homepage": "https://dev.lm-ads.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lm-networks/social-publisher-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lm-networks/social-publisher-mcp/issues"
+  }
 }
