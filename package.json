@@ -7,7 +7,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "auth:linkedin": "node dist/scripts/linkedin-auth.js",
-    "auth:meta": "node dist/scripts/meta-auth.js"
+    "auth:meta": "node dist/scripts/meta-auth.js",
+    "publish-due": "node dist/scripts/publish-due.js",
+    "queue:import": "node dist/scripts/queue-import.js"
   },
   "keywords": [],
   "author": "LuMiGRAF Technology Lab <l@lm-networks.pl> (https://dev.lm-ads.com)",

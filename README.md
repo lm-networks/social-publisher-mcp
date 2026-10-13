@@ -22,6 +22,27 @@ Co serwer robi sam:
 - serwer czeka, aż Instagram przetworzy media (status `FINISHED`), i dopiero wtedy publikuje.
 - zdjęcia z plików lokalnych są wysyłane na LinkedIn i Facebooka. Instagram przyjmuje tylko publiczne URL-e.
 
+## Kolejka publikacji (planowanie na wszystkich platformach)
+
+LinkedIn i Instagram nie pozwalają planować postów przez API, dlatego serwer ma własną kolejkę w pliku `schedule.json`:
+
+| Narzędzie / skrypt | Co robi |
+|---|---|
+| `schedule_post` | Dodaje post do kolejki na wybraną datę (`publish_at`, ISO 8601) |
+| `list_scheduled` / `cancel_scheduled` | Podgląd i anulowanie |
+| `run_due_posts` | Wysyła od razu wszystko, czego termin już minął |
+| `npm run queue:import -- plik.json` | Dodaje cały plan treści naraz |
+| `npm run publish-due` | Wysyła zaległe posty; uruchamiaj cyklicznie |
+
+Opcja `wait_for_link` wstrzymuje post, dopóki link nie zwraca HTTP 200. Przydaje się, gdy zajawka ma wyjść w dniu publikacji wpisu.
+Posty spóźnione o ponad 12 h (np. gdy komputer był wyłączony) nie są wysyłane, tylko oznaczane jako `expired`. Próg zmienisz w `SOCIAL_MCP_MAX_DELAY_HOURS`.
+Wyniki każdego uruchomienia trafiają do `schedule.json.log`.
+
+Uruchamianie co 10 minut w Harmonogramie zadań Windows:
+```bash
+schtasks /Create /SC MINUTE /MO 10 /TN "social-publisher" /TR "node C:\sciezka\do\social-mcp\dist\scripts\publish-due.js"
+```
+
 ## Instalacja
 
 ```bash

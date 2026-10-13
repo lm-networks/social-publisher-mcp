@@ -13,7 +13,9 @@ import { config, requireConfig } from "./config.js";
 import * as facebook from "./platforms/facebook.js";
 import * as instagram from "./platforms/instagram.js";
 import * as linkedin from "./platforms/linkedin.js";
-import type { Platform, PublishResult } from "./types.js";
+import { crossPost, type CrossPost } from "./publish.js";
+import * as queue from "./queue.js";
+import type { Platform } from "./types.js";
 
 const server = new McpServer({ name: "social-publisher", version: "1.0.0" });
 
@@ -183,51 +185,130 @@ server.registerTool(
 
 // ---------------------------------------------------------------- cross-posting
 
+const platformEnum = z.enum(["linkedin", "facebook", "instagram"]);
+
+const crossPostShape = {
+  platforms: z.array(platformEnum).min(1).describe("Docelowe platformy."),
+  text: z.string().min(1).describe("Wspólna treść posta."),
+  platform_text: z
+    .object({ linkedin: z.string(), facebook: z.string(), instagram: z.string() })
+    .partial()
+    .optional()
+    .describe("Opcjonalna treść dla konkretnej platformy (nadpisuje text)."),
+  images: mediaList("Zdjęcia (publiczne URL-e; ścieżki lokalne działają tylko dla LinkedIn i Facebooka)."),
+  instagram_images: mediaList("Osobne zdjęcia dla Instagrama (publiczne URL-e JPEG), gdy images to PNG lub pliki lokalne."),
+  link_url: z.string().url().optional().describe("Link. Na Instagramie dopisywany do opisu tylko jeśli include_link_on_instagram."),
+  include_link_on_instagram: z.boolean().optional().describe("Dopisz link do opisu na Instagramie (nieklikalny). Domyślnie false."),
+};
+
+type CrossPostArgs = {
+  platforms: Platform[];
+  text: string;
+  platform_text?: Partial<Record<Platform, string>>;
+  images?: string[];
+  instagram_images?: string[];
+  link_url?: string;
+  include_link_on_instagram?: boolean;
+};
+
+const toCrossPost = (a: CrossPostArgs): CrossPost => ({
+  platforms: a.platforms,
+  text: a.text,
+  platformText: a.platform_text,
+  images: a.images,
+  instagramImages: a.instagram_images,
+  linkUrl: a.link_url,
+  includeLinkOnInstagram: a.include_link_on_instagram,
+});
+
 server.registerTool(
   "social_publish",
   {
     title: "Opublikuj na wielu platformach",
     description:
       "Publikuje ten sam post (tekst + opcjonalnie zdjęcia i link) na wybranych platformach naraz. Każda platforma jest publikowana niezależnie — błąd jednej nie blokuje pozostałych. Instagram wymaga co najmniej jednego zdjęcia z publicznym URL. Treść można dopasować per platforma w platform_text.",
-    inputSchema: {
-      platforms: z.array(z.enum(["linkedin", "facebook", "instagram"])).min(1).describe("Docelowe platformy."),
-      text: z.string().min(1).describe("Wspólna treść posta."),
-      platform_text: z
-        .object({ linkedin: z.string(), facebook: z.string(), instagram: z.string() })
-        .partial()
-        .optional()
-        .describe("Opcjonalna treść dla konkretnej platformy (nadpisuje text)."),
-      images: mediaList("Zdjęcia (publiczne URL-e; ścieżki lokalne działają tylko dla LinkedIn i Facebooka)."),
-      link_url: z.string().url().optional().describe("Link. Na Instagramie dopisywany do opisu tylko jeśli include_link_on_instagram."),
-      include_link_on_instagram: z.boolean().optional().describe("Dopisz link do opisu na Instagramie (nieklikalny). Domyślnie false."),
-      dry_run: dryRun,
-    },
+    inputSchema: { ...crossPostShape, dry_run: dryRun },
     annotations: publishAnnotations,
   },
   async (a) => {
-    const dry = a.dry_run ?? config.dryRunByDefault;
-    const textFor = (p: Platform) => a.platform_text?.[p] ?? a.text;
-    const jobs: Record<Platform, () => Promise<PublishResult>> = {
-      linkedin: () =>
-        linkedin.createPost(requireConfig("linkedin"), { text: textFor("linkedin"), images: a.images, linkUrl: a.link_url, dryRun: dry }),
-      facebook: () =>
-        facebook.createPost(requireConfig("facebook"), { text: textFor("facebook"), images: a.images, linkUrl: a.link_url, dryRun: dry }),
-      instagram: () => {
-        const caption =
-          a.include_link_on_instagram && a.link_url ? `${textFor("instagram")}\n\n${a.link_url}` : textFor("instagram");
-        return instagram.createPost(requireConfig("instagram"), { caption, images: a.images, dryRun: dry });
-      },
-    };
-    const platforms = [...new Set(a.platforms)];
-    const settled = await Promise.allSettled(platforms.map((p) => jobs[p]()));
-    const results = settled.map((s, i) =>
-      s.status === "fulfilled"
-        ? { ...s.value, ok: true }
-        : { platform: platforms[i], ok: false, error: s.reason instanceof Error ? s.reason.message : String(s.reason) },
-    );
-    const anyOk = results.some((r) => r.ok);
-    return { ...ok({ results }), isError: !anyOk };
+    const results = await crossPost(toCrossPost(a), a.dry_run ?? config.dryRunByDefault);
+    return { ...ok({ results }), isError: !results.some((r) => r.ok) };
   },
+);
+
+// ---------------------------------------------------------------- queue (scheduled posts)
+
+server.registerTool(
+  "schedule_post",
+  {
+    title: "Zaplanuj post",
+    description:
+      "Dodaje post do kolejki publikacji na wskazaną datę i godzinę (wszystkie platformy, także LinkedIn i Instagram, które nie mają planowania w API). Kolejkę wysyła skrypt publish-due uruchamiany cyklicznie (Harmonogram zadań Windows / cron) albo narzędzie run_due_posts. Opcja wait_for_link wstrzymuje publikację, dopóki link nie zacznie działać (np. wpis na blogu zaplanowany na ten sam dzień).",
+    inputSchema: {
+      publish_at: z.string().describe("Data i godzina publikacji w ISO 8601 ze strefą, np. 2026-10-14T09:00:00+02:00."),
+      label: z.string().optional().describe("Krótka nazwa wpisu w kolejce."),
+      wait_for_link: z.boolean().optional().describe("Publikuj dopiero, gdy link_url zwraca HTTP 200."),
+      ...crossPostShape,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  },
+  async (a) =>
+    run(async () => {
+      const [entry] = await queue.addEntries([
+        { publishAt: a.publish_at, label: a.label, waitForLink: a.wait_for_link, post: toCrossPost(a) },
+      ]);
+      return { scheduled: entry, queueFile: queue.QUEUE_FILE };
+    }),
+);
+
+server.registerTool(
+  "list_scheduled",
+  {
+    title: "Pokaż kolejkę",
+    description: "Pokazuje zaplanowane posty z kolejki (domyślnie oczekujące), z wynikami dotychczasowych publikacji.",
+    inputSchema: {
+      status: z.enum(["pending", "done", "failed", "expired", "cancelled", "all"]).optional().describe("Filtr statusu (domyślnie pending)."),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async (a) =>
+    run(async () => {
+      const status = a.status === "all" ? undefined : (a.status ?? "pending");
+      return queue.listEntries(status).map((e) => ({
+        id: e.id,
+        label: e.label,
+        publishAt: e.publishAt,
+        status: e.status,
+        platforms: e.post.platforms,
+        done: e.done,
+        text: e.post.text.slice(0, 120),
+        linkUrl: e.post.linkUrl,
+        lastError: e.lastError,
+        urls: e.results.flatMap((r) => (r.ok && r.url ? [`${r.platform}: ${r.url}`] : [])),
+      }));
+    }),
+);
+
+server.registerTool(
+  "cancel_scheduled",
+  {
+    title: "Anuluj zaplanowany post",
+    description: "Anuluje oczekujący post z kolejki (po id z list_scheduled).",
+    inputSchema: { id: z.string().describe("ID wpisu w kolejce.") },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  },
+  async (a) => run(() => queue.cancelEntry(a.id)),
+);
+
+server.registerTool(
+  "run_due_posts",
+  {
+    title: "Wyślij zaległe posty z kolejki",
+    description: "Publikuje teraz wszystkie posty z kolejki, których termin już minął. Z dry_run pokazuje tylko, co zostałoby wysłane.",
+    inputSchema: { dry_run: dryRun },
+    annotations: publishAnnotations,
+  },
+  async (a) => run(() => queue.runDue({ dryRun: a.dry_run ?? config.dryRunByDefault })),
 );
 
 await server.connect(new StdioServerTransport());
