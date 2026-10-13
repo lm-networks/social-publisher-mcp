@@ -19,6 +19,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, isAbsolute, relative, resolve } from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import { config } from "./config.js";
+import { notifyTelegram } from "./notify.js";
 import { QUEUE_FILE, runDue } from "./queue.js";
 
 const MIME: Record<string, string> = {
@@ -110,6 +111,7 @@ function startQueueTimer() {
       });
       appendFileSync(`${QUEUE_FILE}.log`, lines.join("\n") + "\n");
       lines.forEach((l) => console.error(l));
+      await notifyTelegram(reports).catch((e) => log(`telegram: ${e instanceof Error ? e.message : String(e)}`));
     } catch (e) {
       log(`kolejka: ${e instanceof Error ? e.message : String(e)}`);
     }
