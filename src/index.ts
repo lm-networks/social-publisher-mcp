@@ -88,6 +88,11 @@ server.registerTool(
       link_url: z.string().url().optional().describe("Link do udostępnienia (bez zdjęć → karta artykułu, ze zdjęciami → link w treści)."),
       link_title: z.string().optional().describe("Tytuł karty linku (domyślnie sam URL)."),
       link_description: z.string().optional().describe("Opis karty linku."),
+      link_in_first_comment: z
+        .boolean()
+        .optional()
+        .describe("Wstaw link_url w pierwszym komentarzu zamiast w treści posta (linki w treści obniżają zasięg na LinkedIn)."),
+      first_comment: z.string().max(1250).optional().describe("Własna treść pierwszego komentarza (domyślnie: link do artykułu)."),
       link_thumbnail: z.string().optional().describe("Miniatura karty linku: URL lub ścieżka lokalna. LinkedIn sam jej nie pobiera."),
       visibility: z.enum(["PUBLIC", "CONNECTIONS"]).optional().describe("PUBLIC (domyślnie) lub CONNECTIONS (tylko profil osobisty)."),
       author_urn: z
@@ -109,6 +114,8 @@ server.registerTool(
         linkTitle: a.link_title,
         linkDescription: a.link_description,
         linkThumbnail: a.link_thumbnail,
+        linkInFirstComment: a.link_in_first_comment,
+        firstComment: a.first_comment,
         visibility: a.visibility,
         authorUrn: a.author_urn,
         dryRun: a.dry_run ?? config.dryRunByDefault,
@@ -199,6 +206,8 @@ const crossPostShape = {
   instagram_images: mediaList("Osobne zdjęcia dla Instagrama (publiczne URL-e JPEG), gdy images to PNG lub pliki lokalne."),
   link_url: z.string().url().optional().describe("Link. Na Instagramie dopisywany do opisu tylko jeśli include_link_on_instagram."),
   include_link_on_instagram: z.boolean().optional().describe("Dopisz link do opisu na Instagramie (nieklikalny). Domyślnie false."),
+  linkedin_link_in_comment: z.boolean().optional().describe("LinkedIn: link w pierwszym komentarzu zamiast w treści (lepszy zasięg)."),
+  linkedin_first_comment: z.string().max(1250).optional().describe("LinkedIn: własna treść pierwszego komentarza."),
 };
 
 type CrossPostArgs = {
@@ -209,6 +218,8 @@ type CrossPostArgs = {
   instagram_images?: string[];
   link_url?: string;
   include_link_on_instagram?: boolean;
+  linkedin_link_in_comment?: boolean;
+  linkedin_first_comment?: string;
 };
 
 const toCrossPost = (a: CrossPostArgs): CrossPost => ({
@@ -219,6 +230,8 @@ const toCrossPost = (a: CrossPostArgs): CrossPost => ({
   instagramImages: a.instagram_images,
   linkUrl: a.link_url,
   includeLinkOnInstagram: a.include_link_on_instagram,
+  linkedinLinkInComment: a.linkedin_link_in_comment,
+  linkedinFirstComment: a.linkedin_first_comment,
 });
 
 server.registerTool(

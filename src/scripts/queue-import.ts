@@ -7,7 +7,8 @@
 /**
  * Adds a whole content plan to the queue:  npm run queue:import -- plans/plik.json
  * The file is a JSON array of { publish_at, label?, wait_for_link?, platforms, text,
- * platform_text?, images?, instagram_images?, link_url?, include_link_on_instagram? }.
+ * platform_text?, images?, instagram_images?, link_url?, include_link_on_instagram?,
+ * linkedin_link_in_comment?, linkedin_first_comment? }.
  */
 import { readFileSync } from "node:fs";
 import { addEntries } from "../queue.js";
@@ -31,6 +32,8 @@ const added = await addEntries(
       instagramImages: i.instagram_images,
       linkUrl: i.link_url,
       includeLinkOnInstagram: i.include_link_on_instagram,
+      linkedinLinkInComment: i.linkedin_link_in_comment,
+      linkedinFirstComment: i.linkedin_first_comment,
     },
   })),
 );

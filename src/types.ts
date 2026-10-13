@@ -15,4 +15,6 @@ export interface PublishResult {
   /** For dry runs: what would be sent (without tokens). */
   plan?: unknown;
   scheduledFor?: string;
+  /** LinkedIn: result of the automatic first comment. */
+  firstComment?: { ok: boolean; id?: string; error?: string };
 }

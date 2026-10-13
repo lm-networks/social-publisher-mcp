@@ -8,7 +8,7 @@ LinkedIn Posts API oraz Meta Graph API. Nie korzysta z pośredników typu Buffer
 | Narzędzie | Co robi |
 |---|---|
 | `check_connections` | Sprawdza, które platformy są skonfigurowane i czy tokeny działają |
-| `linkedin_create_post` | Tekst, link (karta artykułu), 1–20 zdjęć; profil osobisty lub strona firmy |
+| `linkedin_create_post` | Tekst, link (karta artykułu), 1–20 zdjęć; profil osobisty lub strona firmy; opcjonalnie link w pierwszym komentarzu (`link_in_first_comment`) |
 | `facebook_create_post` | Tekst, link, 1–10 zdjęć lub wideo; planowanie (`scheduled_at`) |
 | `instagram_create_post` | Zdjęcie, karuzela (2–10), Reels |
 | `social_publish` | Jeden post na kilku platformach naraz, z opcjonalną treścią dla każdej z nich |

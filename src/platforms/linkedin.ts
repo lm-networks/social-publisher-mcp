@@ -124,6 +124,10 @@ export interface LinkedInPostInput {
   linkTitle?: string;
   linkDescription?: string;
   linkThumbnail?: string;
+  /** Put linkUrl in the first comment instead of the post (external links in posts cut reach). */
+  linkInFirstComment?: boolean;
+  /** Custom first-comment text; defaults to a link line when linkInFirstComment is set. */
+  firstComment?: string;
   visibility?: "PUBLIC" | "CONNECTIONS";
   authorUrn?: string;
   dryRun: boolean;
@@ -132,10 +136,12 @@ export interface LinkedInPostInput {
 export async function createPost(cfg: LinkedInConfig, input: LinkedInPostInput): Promise<PublishResult> {
   const images = input.images ?? [];
   if (images.length > 20) throw new Error("[linkedin] Maksymalnie 20 obrazów w poście.");
+  const linkInComment = !!(input.linkInFirstComment && input.linkUrl);
+  const commentText = input.firstComment ?? (linkInComment ? `👉 Cały artykuł: ${input.linkUrl}` : undefined);
 
   let text = input.text;
   // A post carries either images or a link card. With images, the link goes into the text.
-  if (images.length && input.linkUrl && !text.includes(input.linkUrl)) text = `${text}\n\n${input.linkUrl}`;
+  if (!linkInComment && images.length && input.linkUrl && !text.includes(input.linkUrl)) text = `${text}\n\n${input.linkUrl}`;
   if (text.length > LINKEDIN_MAX_TEXT) throw new Error(`[linkedin] Tekst ma ${text.length} znaków (limit ${LINKEDIN_MAX_TEXT}).`);
 
   const author = input.authorUrn ?? (input.dryRun ? cfg.authorUrn ?? "<urn z /v2/userinfo>" : await getAuthorUrn(cfg));
@@ -148,7 +154,7 @@ export async function createPost(cfg: LinkedInConfig, input: LinkedInPostInput):
     const ids: string[] = [];
     for (const src of images) ids.push(await upload(src));
     content = { multiImage: { images: ids.map((id) => ({ id, altText: input.imageAltText })) } };
-  } else if (input.linkUrl) {
+  } else if (input.linkUrl && !linkInComment) {
     content = {
       article: {
         source: input.linkUrl,
@@ -168,15 +174,41 @@ export async function createPost(cfg: LinkedInConfig, input: LinkedInPostInput):
     lifecycleState: "PUBLISHED",
     isReshareDisabledByAuthor: false,
   };
+  const commentBody = (postUrn: string) => ({ actor: author, object: postUrn, message: { text: commentText } });
 
-  if (input.dryRun) return { platform: "linkedin", dryRun: true, plan: { POST: `${REST}/posts`, body } };
+  if (input.dryRun)
+    return {
+      platform: "linkedin",
+      dryRun: true,
+      plan: {
+        POST: `${REST}/posts`,
+        body,
+        firstComment: commentText
+          ? { POST: `${REST}/socialActions/<urn posta>/comments`, body: commentBody("<urn posta>") }
+          : undefined,
+      },
+    };
 
   const res = await rest(cfg, "/posts", { method: "POST", body: JSON.stringify(body) });
   const id = res.headers.get("x-restli-id") ?? res.headers.get("x-linkedin-id") ?? undefined;
-  return {
+  const result: PublishResult = {
     platform: "linkedin",
     dryRun: false,
     id,
     url: id ? `https://www.linkedin.com/feed/update/${id}/` : undefined,
   };
+
+  // The post is already live, so a failed comment is reported but does not fail the whole publish.
+  if (commentText && id) {
+    try {
+      const c = await rest(cfg, `/socialActions/${encodeURIComponent(id)}/comments`, {
+        method: "POST",
+        body: JSON.stringify(commentBody(id)),
+      });
+      result.firstComment = { ok: true, id: c.headers.get("x-restli-id") ?? c.data?.id };
+    } catch (e) {
+      result.firstComment = { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+  return result;
 }

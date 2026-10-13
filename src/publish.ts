@@ -20,6 +20,10 @@ export interface CrossPost {
   instagramImages?: string[];
   linkUrl?: string;
   includeLinkOnInstagram?: boolean;
+  /** LinkedIn: link in the first comment instead of the post body. */
+  linkedinLinkInComment?: boolean;
+  /** LinkedIn: custom first-comment text. */
+  linkedinFirstComment?: string;
 }
 
 export type CrossPostResult =
@@ -35,6 +39,8 @@ export async function crossPost(post: CrossPost, dryRun: boolean): Promise<Cross
         text: textFor("linkedin"),
         images: post.images,
         linkUrl: post.linkUrl,
+        linkInFirstComment: post.linkedinLinkInComment,
+        firstComment: post.linkedinFirstComment,
         dryRun,
       }),
     facebook: () =>
