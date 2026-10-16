@@ -124,6 +124,40 @@ export function cancelEntry(id: string): Promise<QueueEntry> {
   });
 }
 
+export interface EntryPatch {
+  publishAt?: string;
+  label?: string;
+  waitForLink?: boolean;
+  post?: Partial<CrossPost>;
+}
+
+/** Edits a pending entry (admin panel). Published or cancelled entries stay as they were. */
+export function updateEntry(id: string, patch: EntryPatch): Promise<QueueEntry> {
+  return withLock(() => {
+    const entries = load();
+    const e = entries.find((x) => x.id === id);
+    if (!e) throw new Error(`Nie ma wpisu ${id} w kolejce.`);
+    if (e.status !== "pending") throw new Error(`Wpis ${id} ma status ${e.status} - można edytować tylko oczekujące.`);
+    if (patch.publishAt !== undefined) {
+      const ts = Date.parse(patch.publishAt);
+      if (Number.isNaN(ts)) throw new Error(`Niepoprawna data publish_at: ${patch.publishAt} (użyj ISO 8601).`);
+      e.publishAt = new Date(ts).toISOString();
+    }
+    if (patch.label !== undefined) e.label = patch.label;
+    if (patch.waitForLink !== undefined) e.waitForLink = patch.waitForLink;
+    if (patch.post) {
+      const post = { ...e.post, ...patch.post };
+      if (!post.platforms?.length) throw new Error("Podaj co najmniej jedną platformę.");
+      if (post.platforms.includes("instagram") && !(post.instagramImages ?? post.images)?.length)
+        throw new Error("Instagram wymaga zdjęcia.");
+      e.post = post;
+    }
+    e.lastError = undefined;
+    save(entries);
+    return e;
+  });
+}
+
 async function linkIsLive(url: string): Promise<boolean> {
   try {
     const res = await fetch(url, { method: "GET", redirect: "follow", signal: AbortSignal.timeout(20_000) });

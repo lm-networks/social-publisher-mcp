@@ -20,7 +20,7 @@ import { extname, isAbsolute, relative, resolve } from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import { config } from "./config.js";
 import { notifyTelegram } from "./notify.js";
-import { QUEUE_FILE, runDue } from "./queue.js";
+import { addEntries, cancelEntry, listEntries, QUEUE_FILE, runDue, updateEntry, type NewEntry } from "./queue.js";
 
 const MIME: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -95,6 +95,48 @@ async function handleMcp(req: IncomingMessage, res: ServerResponse, buildServer:
   await transport.handleRequest(req, res, body);
 }
 
+async function readJson(req: IncomingMessage): Promise<any> {
+  const chunks: Buffer[] = [];
+  for await (const c of req) chunks.push(c as Buffer);
+  const raw = Buffer.concat(chunks).toString("utf8");
+  return raw ? JSON.parse(raw) : {};
+}
+
+/**
+ * REST for the admin panel (lm-networks.pl/admin/social.php), same Bearer token as /mcp:
+ *   GET  /api/queue               all entries, sorted by publishAt
+ *   POST /api/queue               { publishAt, label?, waitForLink?, post } -> created entry
+ *   PATCH /api/queue/<id>         { publishAt?, label?, waitForLink?, post? } (pending only)
+ *   POST /api/queue/<id>/cancel   cancel a pending entry
+ */
+async function handleApi(req: IncomingMessage, res: ServerResponse, pathname: string) {
+  const parts = pathname.split("/").filter(Boolean); // ["api","queue",id?,action?]
+  if (parts[1] !== "queue") return send(res, 404, { error: "not found" });
+  const id = parts[2];
+  try {
+    if (!id && req.method === "GET") return send(res, 200, listEntries());
+    if (!id && req.method === "POST") {
+      const body = (await readJson(req)) as NewEntry;
+      const [created] = await addEntries([body]);
+      log(`api: dodano ${created.id} ${created.label ?? ""}`);
+      return send(res, 201, created);
+    }
+    if (id && !parts[3] && req.method === "PATCH") {
+      const e = await updateEntry(id, await readJson(req));
+      log(`api: zmieniono ${id}`);
+      return send(res, 200, e);
+    }
+    if (id && parts[3] === "cancel" && req.method === "POST") {
+      const e = await cancelEntry(id);
+      log(`api: anulowano ${id}`);
+      return send(res, 200, e);
+    }
+    return send(res, 405, { error: "method not allowed" });
+  } catch (e) {
+    return send(res, 400, { error: e instanceof Error ? e.message : String(e) });
+  }
+}
+
 function startQueueTimer() {
   const minutes = Number(process.env.SOCIAL_MCP_QUEUE_INTERVAL_MIN ?? 5);
   if (!minutes) return;
@@ -138,6 +180,10 @@ export function startHttpServer(buildServer: () => McpServer) {
           return send(res, 401, { error: "unauthorized" });
         }
         return await handleMcp(req, res, buildServer);
+      }
+      if (url.pathname.startsWith("/api/")) {
+        if (!authorized(req, url)) return send(res, 401, { error: "unauthorized" });
+        return await handleApi(req, res, url.pathname);
       }
       send(res, 404, { error: "not found" });
     } catch (e) {
