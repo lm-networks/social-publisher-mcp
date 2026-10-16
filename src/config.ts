@@ -5,7 +5,7 @@
  * © 2026 LuMiGRAF Technology Lab
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,6 +13,23 @@ import { fileURLToPath } from "node:url";
 export const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const envFile = join(PROJECT_ROOT, ".env");
 if (existsSync(envFile)) process.loadEnvFile(envFile);
+
+/**
+ * Settings saved from the admin panel (settings.json next to the queue, e.g. /data/settings.json).
+ * They override .env / container env, so tokens can be changed without touching the server.
+ */
+export const SETTINGS_FILE = resolve(
+  process.env.SOCIAL_MCP_SETTINGS_FILE ??
+    join(dirname(process.env.SOCIAL_MCP_QUEUE_FILE ?? join(PROJECT_ROOT, "schedule.json")), "settings.json"),
+);
+if (existsSync(SETTINGS_FILE)) {
+  try {
+    const overlay = JSON.parse(readFileSync(SETTINGS_FILE, "utf8")) as Record<string, unknown>;
+    for (const [k, v] of Object.entries(overlay)) if (typeof v === "string" && v.trim()) process.env[k] = v.trim();
+  } catch (e) {
+    console.error(`settings.json: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
 
 const env = (name: string): string | undefined => {
   const v = process.env[name]?.trim();

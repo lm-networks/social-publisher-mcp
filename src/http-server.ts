@@ -14,13 +14,30 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { appendFileSync, createReadStream, statSync } from "node:fs";
+import { appendFileSync, createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, isAbsolute, relative, resolve } from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import { config } from "./config.js";
 import { notifyTelegram } from "./notify.js";
 import { addEntries, cancelEntry, listEntries, QUEUE_FILE, runDue, updateEntry, type NewEntry } from "./queue.js";
+import { describeSettings, saveSettings, testPlatform } from "./settings.js";
+
+
+/** After saving settings: wait until the queue is idle, then exit so Docker restarts us with new values. */
+function restartWhenIdle() {
+  const lock = `${QUEUE_FILE}.lock`;
+  let waited = 0;
+  const check = () => {
+    if (existsSync(lock) && waited < 120_000) {
+      waited += 1000;
+      return setTimeout(check, 1000);
+    }
+    log("ustawienia zmienione z panelu - restart procesu");
+    process.exit(0);
+  };
+  setTimeout(check, 500);
+}
 
 const MIME: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -111,6 +128,22 @@ async function readJson(req: IncomingMessage): Promise<any> {
  */
 async function handleApi(req: IncomingMessage, res: ServerResponse, pathname: string) {
   const parts = pathname.split("/").filter(Boolean); // ["api","queue",id?,action?]
+  if (parts[1] === "settings") {
+    try {
+      if (!parts[2] && req.method === "GET") return send(res, 200, describeSettings());
+      if (!parts[2] && req.method === "PUT") {
+        const changed = saveSettings(await readJson(req));
+        log(`api: ustawienia zapisane (${changed.join(", ") || "bez zmian"})`);
+        send(res, 200, { ok: true, changed, restarting: changed.length > 0 });
+        if (changed.length) restartWhenIdle();
+        return;
+      }
+      if (parts[2] === "test" && parts[3] && req.method === "POST") return send(res, 200, await testPlatform(parts[3]));
+      return send(res, 405, { error: "method not allowed" });
+    } catch (e) {
+      return send(res, 400, { error: e instanceof Error ? e.message : String(e) });
+    }
+  }
   if (parts[1] !== "queue") return send(res, 404, { error: "not found" });
   const id = parts[2];
   try {
