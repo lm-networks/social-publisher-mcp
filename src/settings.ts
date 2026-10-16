@@ -86,7 +86,11 @@ export function saveSettings(patch: Record<string, unknown>): string[] {
     }
     if (typeof v !== "string") throw new Error(`${k}: oczekiwany tekst.`);
     const t = v.trim();
-    if (t === "" || overlay[k] === t) continue;
+    const current = process.env[k]?.trim() ?? "";
+    const isBool = /^(true|false|1|0|yes|no)?$/i.test(t) && /_(COMMENTS|DRY_RUN)$/.test(k);
+    const same = isBool ? ["1", "true", "yes"].includes(t.toLowerCase()) === ["1", "true", "yes"].includes(current.toLowerCase()) : t === current;
+    // "" = keep; a value equal to what is already in effect is not a change (no copy of .env into the panel)
+    if (t === "" || overlay[k] === t || (!(k in overlay) && same)) continue;
     overlay[k] = t;
     changed.push(k);
   }
