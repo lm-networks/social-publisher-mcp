@@ -11,6 +11,7 @@
 
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { config, SETTINGS_FILE } from "./config.js";
+import { organizationName } from "./platforms/linkedin.js";
 
 export type SettingsGroup = "facebook" | "instagram" | "linkedin" | "telegram" | "general";
 
@@ -131,6 +132,14 @@ export async function testPlatform(platform: string): Promise<{ ok: boolean; inf
     if (platform === "linkedin") {
       const c = config.linkedin;
       if (!c) throw new Error("brak LINKEDIN_ACCESS_TOKEN");
+      // A company-page token has no openid/profile scope, so /v2/userinfo would fail with 403.
+      if (c.authorUrn?.startsWith("urn:li:organization:")) {
+        const name = await organizationName(c, c.authorUrn);
+        return {
+          ok: true,
+          info: `publikuje jako strona „${name ?? c.authorUrn}”, link ${c.commentsEnabled ? "w pierwszym komentarzu" : "w treści posta"}`,
+        };
+      }
       const j = await getJson("https://api.linkedin.com/v2/userinfo", { Authorization: `Bearer ${c.accessToken}` });
       return { ok: true, info: `zalogowany jako ${j.name ?? j.sub}${c.authorUrn ? `, publikuje jako ${c.authorUrn}` : ""}` };
     }

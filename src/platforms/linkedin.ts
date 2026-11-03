@@ -71,6 +71,12 @@ export async function getAuthorUrn(cfg: LinkedInConfig): Promise<string> {
   return cachedAuthor;
 }
 
+/** Company page name. Needs rw_organization_admin, so it also proves the token can act for the page. */
+export async function organizationName(cfg: LinkedInConfig, urn: string): Promise<string | undefined> {
+  const { data } = await rest(cfg, `/organizations/${urn.split(":").pop()}`);
+  return data?.localizedName;
+}
+
 export async function whoAmI(cfg: LinkedInConfig) {
   const author = await getAuthorUrn(cfg);
   let name: string | undefined;
@@ -79,6 +85,8 @@ export async function whoAmI(cfg: LinkedInConfig) {
       headers: { Authorization: `Bearer ${cfg.accessToken}` },
     }).catch(() => ({ data: undefined }));
     name = data?.name;
+  } else if (author.startsWith("urn:li:organization:")) {
+    name = await organizationName(cfg, author).catch(() => undefined);
   }
   return { author, name };
 }
