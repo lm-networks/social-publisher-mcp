@@ -28,6 +28,7 @@ export const FIELDS: { key: string; group: SettingsGroup; secret: boolean }[] = 
   { key: "LINKEDIN_TOKEN_EXPIRES", group: "linkedin", secret: false },
   { key: "LINKEDIN_AUTHOR_URN", group: "linkedin", secret: false },
   { key: "LINKEDIN_COMMENTS", group: "linkedin", secret: false },
+  { key: "LINKEDIN_RESHARE_AS", group: "linkedin", secret: false },
   { key: "LINKEDIN_CLIENT_ID", group: "linkedin", secret: false },
   { key: "LINKEDIN_CLIENT_SECRET", group: "linkedin", secret: true },
   { key: "LINKEDIN_API_VERSION", group: "linkedin", secret: false },

@@ -25,7 +25,9 @@ export async function notifyTelegram(reports: RunReport[]): Promise<void> {
   if (!worth.length) return;
 
   const blocks = worth.map((r) => {
-    const commentFailed = (r.results ?? []).some((x) => x.ok && x.firstComment && !x.firstComment.ok);
+    const commentFailed = (r.results ?? []).some(
+      (x) => x.ok && ((x.firstComment && !x.firstComment.ok) || (x.reshare && !x.reshare.ok)),
+    );
     const icon = r.outcome === "published" && commentFailed ? ICON.partial : ICON[r.outcome];
     const lines = [`${icon} <b>${esc(r.label ?? r.id)}</b>`];
     for (const x of r.results ?? []) {
@@ -37,6 +39,9 @@ export async function notifyTelegram(reports: RunReport[]): Promise<void> {
       lines.push(x.url ? `• ${name}: <a href="${esc(x.url)}">post</a>` : `• ${name}: opublikowano`);
       if (x.firstComment && !x.firstComment.ok)
         lines.push(`  ⚠️ komentarz z linkiem nie dodany: ${esc((x.firstComment.error ?? "").slice(0, 200))}`);
+      if (x.reshare?.ok && x.reshare.url) lines.push(`  ↪ udostępnione z profilu: <a href="${esc(x.reshare.url)}">post</a>`);
+      if (x.reshare && !x.reshare.ok)
+        lines.push(`  ⚠️ udostępnienie z profilu nieudane: ${esc((x.reshare.error ?? "").slice(0, 200))}`);
     }
     if (!r.results?.length && r.note) lines.push(esc(r.note));
     return lines.join("\n");

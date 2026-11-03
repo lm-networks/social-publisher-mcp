@@ -43,6 +43,8 @@ export interface LinkedInConfig {
   apiVersion?: string;
   /** Comments need the Community Management API; without it the link goes into the post text. */
   commentsEnabled: boolean;
+  /** urn:li:person:… that reshares every post with its own comment (the token must belong to that person). */
+  reshareAs?: string;
 }
 
 export interface FacebookConfig {
@@ -98,6 +100,7 @@ function load(): Config {
           authorUrn: env("LINKEDIN_AUTHOR_URN"),
           apiVersion: env("LINKEDIN_API_VERSION"),
           commentsEnabled: ["1", "true", "yes"].includes((env("LINKEDIN_COMMENTS") ?? "").toLowerCase()),
+          reshareAs: env("LINKEDIN_RESHARE_AS"),
         }
       : undefined,
     facebook: fbPage && fbToken ? { pageId: fbPage, pageAccessToken: fbToken } : undefined,

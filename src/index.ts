@@ -210,6 +210,11 @@ export function buildServer(): McpServer {
     include_link_on_instagram: z.boolean().optional().describe("Dopisz link do opisu na Instagramie (nieklikalny). Domyślnie false."),
     linkedin_link_in_comment: z.boolean().optional().describe("LinkedIn: link w pierwszym komentarzu zamiast w treści (lepszy zasięg)."),
     linkedin_first_comment: z.string().max(1250).optional().describe("LinkedIn: własna treść pierwszego komentarza."),
+    linkedin_reshare_text: z
+      .string()
+      .max(3000)
+      .optional()
+      .describe("LinkedIn: komentarz osoby z LINKEDIN_RESHARE_AS, która udostępnia post strony u siebie. Puste = bez udostępnienia."),
   };
 
   type CrossPostArgs = {
@@ -222,6 +227,7 @@ export function buildServer(): McpServer {
     include_link_on_instagram?: boolean;
     linkedin_link_in_comment?: boolean;
     linkedin_first_comment?: string;
+    linkedin_reshare_text?: string;
   };
 
   const toCrossPost = (a: CrossPostArgs): CrossPost => ({
@@ -234,6 +240,7 @@ export function buildServer(): McpServer {
     includeLinkOnInstagram: a.include_link_on_instagram,
     linkedinLinkInComment: a.linkedin_link_in_comment,
     linkedinFirstComment: a.linkedin_first_comment,
+    linkedinReshareText: a.linkedin_reshare_text,
   });
 
   server.registerTool(

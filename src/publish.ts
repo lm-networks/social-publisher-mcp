@@ -24,6 +24,8 @@ export interface CrossPost {
   linkedinLinkInComment?: boolean;
   /** LinkedIn: custom first-comment text. */
   linkedinFirstComment?: string;
+  /** LinkedIn: own words of LINKEDIN_RESHARE_AS when resharing the post; empty = no reshare. */
+  linkedinReshareText?: string;
 }
 
 export type CrossPostResult =
@@ -41,6 +43,7 @@ export async function crossPost(post: CrossPost, dryRun: boolean): Promise<Cross
         linkUrl: post.linkUrl,
         linkInFirstComment: post.linkedinLinkInComment,
         firstComment: post.linkedinFirstComment,
+        reshareText: post.linkedinReshareText,
         dryRun,
       }),
     facebook: () =>

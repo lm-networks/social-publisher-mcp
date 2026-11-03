@@ -136,6 +136,8 @@ export interface LinkedInPostInput {
   linkInFirstComment?: boolean;
   /** Custom first-comment text; defaults to a link line when linkInFirstComment is set. */
   firstComment?: string;
+  /** Own words for the reshare by LINKEDIN_RESHARE_AS; no reshare when empty. */
+  reshareText?: string;
   visibility?: "PUBLIC" | "CONNECTIONS";
   authorUrn?: string;
   dryRun: boolean;
@@ -186,6 +188,18 @@ export async function createPost(cfg: LinkedInConfig, input: LinkedInPostInput):
     isReshareDisabledByAuthor: false,
   };
   const commentBody = (postUrn: string) => ({ actor: author, object: postUrn, message: { text: commentText } });
+  // A company page reaches few people at first, so a person (LINKEDIN_RESHARE_AS) reshares it with their own words.
+  const reshareText = input.reshareText?.trim();
+  const reshareBody = (postUrn: string) => ({
+    author: cfg.reshareAs,
+    commentary: toLittleText(reshareText ?? ""),
+    visibility: "PUBLIC",
+    distribution: { feedDistribution: "MAIN_FEED", targetEntities: [], thirdPartyDistributionChannels: [] },
+    lifecycleState: "PUBLISHED",
+    isReshareDisabledByAuthor: false,
+    reshareContext: { parent: postUrn },
+  });
+  const reshare = !!(reshareText && cfg.reshareAs && cfg.reshareAs !== author);
 
   if (input.dryRun)
     return {
@@ -197,6 +211,7 @@ export async function createPost(cfg: LinkedInConfig, input: LinkedInPostInput):
         firstComment: commentText
           ? { POST: `${REST}/socialActions/<urn posta>/comments`, body: commentBody("<urn posta>") }
           : undefined,
+        reshare: reshare ? { POST: `${REST}/posts`, body: reshareBody("<urn posta>") } : undefined,
       },
     };
 
@@ -219,6 +234,15 @@ export async function createPost(cfg: LinkedInConfig, input: LinkedInPostInput):
       result.firstComment = { ok: true, id: c.headers.get("x-restli-id") ?? c.data?.id };
     } catch (e) {
       result.firstComment = { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+  if (reshare && id) {
+    try {
+      const r = await rest(cfg, "/posts", { method: "POST", body: JSON.stringify(reshareBody(id)) });
+      const rid = r.headers.get("x-restli-id") ?? r.headers.get("x-linkedin-id") ?? undefined;
+      result.reshare = { ok: true, id: rid, url: rid ? `https://www.linkedin.com/feed/update/${rid}/` : undefined };
+    } catch (e) {
+      result.reshare = { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
   }
   return result;

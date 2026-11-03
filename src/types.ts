@@ -17,4 +17,6 @@ export interface PublishResult {
   scheduledFor?: string;
   /** LinkedIn: result of the automatic first comment. */
   firstComment?: { ok: boolean; id?: string; error?: string };
+  /** LinkedIn: result of the reshare by LINKEDIN_RESHARE_AS. */
+  reshare?: { ok: boolean; id?: string; url?: string; error?: string };
 }
